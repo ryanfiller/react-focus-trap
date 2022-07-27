@@ -3,103 +3,79 @@
  * The container that will maintain focus
  */
 
-import React from 'react'
+import React, { useEffect, createElement } from 'react'
 
 let timer = null
 let isDOM = typeof document !== 'undefined'
 
-const defaultProps = {
-  element: 'div'
-}
+let root
+let anchor = null
 
-class FocalPoint extends React.Component {
-  constructor(props, context) {
-    super(props, context)
+export default function FocalPoint(props) {
+  const { children, element = 'div', className } = props
 
-    this.anchor = null
-
-    this.focus = this.focus.bind(this)
-    this._onBlur = this._onBlur.bind(this)
-    this._setRoot = this._setRoot.bind(this)
+  const contains = element => {
+    return root.contains(element)
   }
 
-  contains(element) {
-    return this.root.contains(element)
-  }
-
-  focus() {
-    if (this.contains(document.activeElement) === false) {
-      this.root.focus()
+  const focus = () => {
+    if (contains(document.activeElement) === false) {
+      root.focus()
     }
   }
 
-  trapFocus(e) {
+  const trapFocus = e => {
     clearTimeout(timer)
-    timer = setTimeout(this.focus, 10)
+    timer = setTimeout(focus, 10)
   }
 
-  returnFocus() {
+  const returnFocus = () => {
     // When transitioning between pages using hash route state,
     // this anchor is some times lost. Do not attempt to focus
     // on a non-existent anchor.
     if (
-      this.anchor &&
-      typeof this.anchor === 'object' &&
-      typeof this.anchor.focus === 'function'
+      anchor &&
+      typeof anchor === 'object' &&
+      typeof anchor.focus === 'function'
     ) {
-      this.anchor.focus()
+      anchor.focus()
     }
   }
 
-  componentWillMount() {
-    if (isDOM) {
-      this.anchor = document.activeElement
-    }
+  const setRoot = el => {
+    root = el
   }
 
-  componentDidMount() {
-    this.trapFocus()
-
-    document.addEventListener('focus', this._onBlur, true)
-  }
-
-  componentWillUnmount() {
-    document.removeEventListener('focus', this._onBlur, true)
-
-    clearTimeout(timer)
-
-    this.returnFocus()
-
-    this.anchor = null
-  }
-
-  render() {
-    let { children, element, className } = this.props
-
-    return React.createElement(element, {
-      ref: this._setRoot,
-      tabIndex: 0,
-      className,
-      children
-    })
-  }
-
-  // Private -------------------------------------------------- //
-
-  _setRoot(el) {
-    this.root = el
-  }
-
-  _onBlur(event) {
-    let current = this.anchor
+  const onBlur = event => {
+    let current = anchor
 
     if (current && current.contains(event.target) === false) {
       event.preventDefault()
-      this.trapFocus()
+      trapFocus()
     }
   }
+
+  useEffect(
+    () => {
+      if (isDOM) anchor = document.activeElement
+
+      trapFocus()
+      document.addEventListener('focus', onBlur, true)
+
+      return () => {
+        document.removeEventListener('focus', onBlur, true)
+        clearTimeout(timer)
+        returnFocus()
+        anchor = null
+      }
+    },
+    [trapFocus, onBlur, timer, returnFocus, anchor]
+  )
+
+  return createElement(element, {
+    ref: setRoot,
+    tabIndex: 0,
+    className,
+    children
+  })
 }
-
-FocalPoint.defaultProps = defaultProps
-
-export default FocalPoint
